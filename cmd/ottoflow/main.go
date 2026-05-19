@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/arun-builds/ottoflow/internal/db"
 	"github.com/arun-builds/ottoflow/internal/engine"
 	"github.com/arun-builds/ottoflow/internal/models"
 	"github.com/arun-builds/ottoflow/internal/nodes"
@@ -17,6 +18,21 @@ import (
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
+
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		dbURL = "postgres://postgres:postgres@localhost:5432/ottoflow?sslmode=disable"
+	}
+
+	dbConn, err := db.NewPostgresDB(dbURL)
+	if err != nil {
+		slog.Error("Database connection failed", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	defer dbConn.Close()
+
+	workflowRepo := db.NewWorkflowRepository(dbConn)
+	_ = workflowRepo
 
 	registry := nodes.NewRegistry()
 	registry.Register(&nodes.WebhookNode{})
