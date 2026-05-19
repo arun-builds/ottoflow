@@ -9,10 +9,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/arun-builds/ottoflow/internal/api"
 	"github.com/arun-builds/ottoflow/internal/db"
 	"github.com/arun-builds/ottoflow/internal/engine"
 	"github.com/arun-builds/ottoflow/internal/models"
 	"github.com/arun-builds/ottoflow/internal/nodes"
+	"github.com/arun-builds/ottoflow/internal/worker"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -24,6 +27,18 @@ func main() {
 		dbURL = "postgres://postgres:postgres@localhost:5432/ottoflow?sslmode=disable"
 	}
 
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379", // Default local Redis
+		Password: "",
+		DB:       0,
+	})
+
+	if err := rdb.Ping(context.Background()).Err(); err != nil {
+		slog.Error("Redis connection failed", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	slog.Info("Successfully connected to Redis")
+
 	dbConn, err := db.NewPostgresDB(dbURL)
 	if err != nil {
 		slog.Error("Database connection failed", slog.String("error", err.Error()))
@@ -32,7 +47,10 @@ func main() {
 	defer dbConn.Close()
 
 	workflowRepo := db.NewWorkflowRepository(dbConn)
-	_ = workflowRepo
+	execRepo := db.NewExecutionRepository(dbConn)
+
+	webhookHandler := api.NewWebhookHandler(execRepo)
+	outboxWorker := worker.NewOutboxRelay(execRepo, rdb)
 
 	registry := nodes.NewRegistry()
 	registry.Register(&nodes.WebhookNode{})
@@ -41,6 +59,16 @@ func main() {
 	slog.Info("Initialized Node Registry", slog.Int("nodes_loaded", 2))
 	runner := engine.NewRunner(registry)
 
+	// Initialize the worker that pulls from Redis and runs the DAG
+	executorWorker := worker.NewExecutorWorker(execRepo, workflowRepo, runner, rdb, "worker-1")
+
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+
+	// Start BOTH workers in the background
+	go outboxWorker.Start(workerCtx)
+	go executorWorker.Start(workerCtx)
+
+	// Keep the dry run for local testing
 	runTestWorkflow(runner)
 
 	port := os.Getenv("PORT")
@@ -53,6 +81,8 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"healthy"}`))
 	})
+
+	mux.HandleFunc("POST /webhook/{id}", webhookHandler.HandleIncomingWebhook)
 
 	srv := &http.Server{Addr: ":" + port, Handler: mux}
 
@@ -69,10 +99,10 @@ func main() {
 	<-quit
 
 	slog.Info("Shutting down server gracefully...")
+	workerCancel() // Stops the background Redis and Postgres loops safely
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	srv.Shutdown(ctx)
-
 }
 
 // runTestWorkflow builds a hardcoded DAG and pushes it through the execution runner.
@@ -95,7 +125,7 @@ func runTestWorkflow(runner *engine.Runner) {
 				Type: "log",
 				Name: "Log the commit",
 				Parameters: map[string]interface{}{
-					//  expression will be handled by dummy parser.
+					//  expression will be handled by our gjson parser.
 					"message": "Received new code! Details: {{ $json.commit.message }}",
 				},
 			},
@@ -112,7 +142,6 @@ func runTestWorkflow(runner *engine.Runner) {
 	}
 
 	// 2. Mock the incoming HTTP Webhook Payload
-	// In reality, the HTTP handler will construct this from the `r.Body`.
 	initialData := [][]engine.OttoItem{
 		{
 			{
