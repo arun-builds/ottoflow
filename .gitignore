@@ -1,0 +1,41 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# Output of the go coverage tool
+coverage.out
+
+# Build output
+/bin/
+/build/
+
+# Dependency directories
+vendor/
+
+# Go workspace and module cache
+go.work
+/pkg/mod/
+
+# Test cache
+testdata/
+
+# Environment files
+.env
+
+# IDE/editor directories
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
