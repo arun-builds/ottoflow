@@ -45,6 +45,8 @@ func main() {
 	registry := nodes.NewRegistry()
 	registry.Register(&nodes.WebhookNode{})
 	registry.Register(&nodes.LogNode{})
+	registry.Register(&nodes.IfNode{})
+
 	runner := engine.NewRunner(registry)
 
 	outboxWorker := worker.NewOutboxRelay(execRepo, rdb)

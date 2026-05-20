@@ -138,7 +138,7 @@ func (w *ExecutorWorker) processJob(ctx context.Context, msg redis.XMessage) {
 	}
 
 	// 4. RUN THE DAG ENGINE!
-	err = w.runner.Run(ctx, job.WorkspaceID, *workflow, startNodeID, initialData)
+	err = w.runner.Run(ctx, job.WorkspaceID, job.ID, *workflow, startNodeID, initialData, w.execRepo)
 
 	finalStatus := "completed"
 	if err != nil {

@@ -136,3 +136,74 @@ func (r *ExecutionRepository) CompleteExecution(ctx context.Context, execID, sta
 	_, err := r.db.ExecContext(ctx, query, status, execID)
 	return err
 }
+
+// LogNodeExecution records the outcome of a single node using your exact struct types.
+func (r *ExecutionRepository) LogNodeExecution(
+	ctx context.Context,
+	executionID string,
+	nodeID string,
+	status string,
+	errorMsg *string,
+	inputData []map[string]interface{},
+	outputData []map[string]interface{},
+) error {
+	// Convert the maps to raw JSON bytes for Postgres JSONB columns
+	inputBytes, _ := json.Marshal(inputData)
+	outputBytes, _ := json.Marshal(outputData)
+
+	query := `
+		INSERT INTO node_executions (execution_id, node_id, status, error_message, input_data, output_data, executed_at)
+		VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+	`
+	_, err := r.db.ExecContext(ctx, query, executionID, nodeID, status, errorMsg, inputBytes, outputBytes)
+	if err != nil {
+		return fmt.Errorf("failed to log node execution: %w", err)
+	}
+	return nil
+}
+
+// GetNodeExecutions fetches the logs and unmarshals the JSON back into your struct's maps.
+func (r *ExecutionRepository) GetNodeExecutions(ctx context.Context, executionID string) ([]models.NodeExecution, error) {
+	query := `
+		SELECT id, execution_id, node_id, status, input_data, output_data, error_message, executed_at 
+		FROM node_executions 
+		WHERE execution_id = $1 
+		ORDER BY executed_at ASC
+	`
+	rows, err := r.db.QueryContext(ctx, query, executionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var logs []models.NodeExecution
+	for rows.Next() {
+		var log models.NodeExecution
+		var inputBytes, outputBytes []byte
+
+		// Scan into temporary byte slices for the JSON columns
+		if err := rows.Scan(
+			&log.ID,
+			&log.ExecutionID,
+			&log.NodeID,
+			&log.Status,
+			&inputBytes,
+			&outputBytes,
+			&log.ErrorMessage,
+			&log.ExecutedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		// Unmarshal the bytes back into the struct's map fields
+		if len(inputBytes) > 0 {
+			json.Unmarshal(inputBytes, &log.InputData)
+		}
+		if len(outputBytes) > 0 {
+			json.Unmarshal(outputBytes, &log.OutputData)
+		}
+
+		logs = append(logs, log)
+	}
+	return logs, nil
+}
