@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/arun-builds/ottoflow/internal/db"
+	"github.com/arun-builds/ottoflow/internal/engine"
 	"github.com/arun-builds/ottoflow/internal/queue"
 )
 
@@ -30,6 +31,7 @@ func main() {
 	defer dbConn.Close()
 
 	workflowRepo := db.NewWorkflowRepository(dbConn)
+	executionRepo := db.NewExecutionRepository(dbConn)
 
 	// 2. Connect to Redis Consumer
 	redisURL := os.Getenv("REDIS_URL")
@@ -65,7 +67,20 @@ func main() {
 				slog.String("workspace", workflow.WorkspaceID),
 			)
 
-			// TODO: Actually traverse the nodes and edges here!
+			err = engine.Execute(
+				ctx,
+				executionRepo,        // <-- Passes the storage interface
+				workflow.WorkspaceID, // <-- Needed for the parent execution record
+				workflow.ID,          // <-- Needed for the parent execution record
+				"webhook",            // Trigger type
+				workflow.Nodes,
+				workflow.Edges,
+				payload,
+			)
+			if err != nil {
+				slog.Error("Workflow execution failed", slog.String("error", err.Error()))
+				return err
+			}
 
 			return nil
 		})

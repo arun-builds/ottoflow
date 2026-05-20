@@ -49,7 +49,9 @@ func main() {
 
 	// Only UI Repos and Handlers
 	workflowRepo := db.NewWorkflowRepository(dbConn)
+	executionRepo := db.NewExecutionRepository(dbConn)
 	workflowHandler := api.NewWorkflowHandler(workflowRepo)
+	executionHandler := api.NewExecutionHandler(executionRepo)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -67,6 +69,9 @@ func main() {
 	mux.HandleFunc("GET /api/workflows/{id}", workflowHandler.GetWorkflow)
 	mux.HandleFunc("POST /api/workflows", workflowHandler.CreateWorkflow)
 	mux.HandleFunc("PUT /api/workflows/{id}", workflowHandler.UpdateWorkflow)
+
+	mux.HandleFunc("GET /api/workflows/{workflow_id}/executions", executionHandler.HandleGetExecutions)
+	mux.HandleFunc("GET /api/executions/{execution_id}/nodes", executionHandler.HandleGetNodeExecutions)
 
 	handler := CORSMiddleware(mux)
 
