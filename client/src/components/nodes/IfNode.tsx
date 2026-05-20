@@ -1,49 +1,40 @@
 import { Handle, Position } from '@xyflow/react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { GitBranch } from 'lucide-react';
 
 export default function IfNode({ data }: { data: any }) {
     return (
-        <Card className="w-60 border border-border shadow-sm bg-card relative">
+        <div className="w-52 rounded-lg border border-purple-300 dark:border-purple-700 bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
             <Handle
                 type="target"
                 position={Position.Left}
                 id="main"
-                className="w-5 h-5 bg-muted-foreground border-2 border-background cursor-crosshair transition-transform hover:scale-125"
+                className="!w-4 !h-4 !bg-gray-500 !border-2 !border-white dark:!border-gray-900 hover:!scale-150 transition-transform"
             />
 
-            <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
-                <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-purple-100 dark:bg-purple-900/50 rounded-md text-purple-600 dark:text-purple-400">
-                        <GitBranch size={14} />
-                    </div>
-                    <CardTitle className="text-sm font-medium">If / Else</CardTitle>
-                </div>
-                <Badge variant="outline" className="text-[10px]">Logic</Badge>
-            </CardHeader>
+            <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 dark:bg-purple-950/50 border-b border-purple-200 dark:border-purple-800">
+                <GitBranch size={14} className="text-purple-600 dark:text-purple-400 shrink-0" />
+                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{data.label || 'Condition'}</span>
+            </div>
 
-            <CardContent className="space-y-4 px-4 pb-4">
-                <p className="text-xs text-muted-foreground truncate">
-                    {data.label || 'Routes data.'}
-                </p>
-
-                <div className="bg-muted px-2 py-1.5 rounded-md text-xs font-mono text-center border border-border truncate">
-                    {data.value1 || 'val1'} <span className="text-purple-500 font-bold">{data.operator || '=='}</span> {data.value2 || 'val2'}
+            <div className="px-3 py-2 space-y-2">
+                <div className="bg-gray-50 dark:bg-gray-800 px-2 py-1.5 rounded text-xs font-mono text-center border border-gray-200 dark:border-gray-700">
+                    <span className="text-blue-600 dark:text-blue-400">{data.value1 || 'val1'}</span>
+                    <span className="text-purple-600 dark:text-purple-400 font-bold mx-1">{data.operator || '=='}</span>
+                    <span className="text-green-600 dark:text-green-400">{data.value2 || 'val2'}</span>
                 </div>
+            </div>
 
-                <div className="flex flex-col gap-4 text-right text-xs font-semibold pr-2 mt-2">
-                    <div className="text-green-600 dark:text-green-400">True</div>
-                    <div className="text-red-600 dark:text-red-400">False</div>
-                </div>
-            </CardContent>
+            <div className="relative h-10 border-t border-gray-200 dark:border-gray-700">
+                <div className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-green-600 dark:text-green-400">True</div>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-red-600 dark:text-red-400">False</div>
+            </div>
 
             <Handle
                 type="source"
                 position={Position.Right}
                 id="true"
-                style={{ top: '65%' }}
-                className="w-5 h-5 bg-green-500 border-2 border-background cursor-crosshair transition-transform hover:scale-125"
+                style={{ top: '60%' }}
+                className="!w-4 !h-4 !bg-green-500 !border-2 !border-white dark:!border-gray-900 hover:!scale-150 transition-transform"
             />
 
             <Handle
@@ -51,8 +42,8 @@ export default function IfNode({ data }: { data: any }) {
                 position={Position.Right}
                 id="false"
                 style={{ top: '85%' }}
-                className="w-5 h-5 bg-red-500 border-2 border-background cursor-crosshair transition-transform hover:scale-125"
+                className="!w-4 !h-4 !bg-red-500 !border-2 !border-white dark:!border-gray-900 hover:!scale-150 transition-transform"
             />
-        </Card>
+        </div>
     );
 }

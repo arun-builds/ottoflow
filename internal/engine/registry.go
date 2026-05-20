@@ -29,4 +29,5 @@ var Registry = map[string]NodeHandler{
 	"http":    &HttpNodeHandler{},
 	"webhook": &WebhookNodeHandler{},
 	"log":     &LogNodeHandler{},
+	"email":   &EmailNodeHandler{},
 }

@@ -37,7 +37,7 @@ func main() {
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgresql://postgres:postgres@localhost:5432/postgres"
+		dbURL = "postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable"
 	}
 
 	dbConn, err := db.NewPostgresDB(dbURL)

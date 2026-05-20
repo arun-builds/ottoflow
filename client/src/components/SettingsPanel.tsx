@@ -4,6 +4,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 export default function SettingsPanel({
     selectedNodeId,
@@ -15,7 +16,6 @@ export default function SettingsPanel({
     const { getNodes, setNodes } = useReactFlow();
     const [node, setNode] = useState<Node | null>(null);
 
-    // Sync the local component state with the canvas node whenever the selection changes
     useEffect(() => {
         if (selectedNodeId) {
             const foundNode = getNodes().find((n) => n.id === selectedNodeId);
@@ -27,15 +27,13 @@ export default function SettingsPanel({
 
     if (!node) return null;
 
-    // Helper to instantly update the React Flow state and our local state
-    const updateData = (key: string, value: string | null | undefined) => {
-        const safeValue = value || '';
+    const updateData = (key: string, value: string) => {
         setNodes((nds) =>
             nds.map((n) => {
                 if (n.id === node.id) {
-                    const updatedNode = { ...n, data: { ...n.data, [key]: safeValue } };
-                    setNode(updatedNode); // Update local form state
-                    return updatedNode;   // Update canvas state
+                    const updatedNode = { ...n, data: { ...n.data, [key]: value } };
+                    setNode(updatedNode);
+                    return updatedNode;
                 }
                 return n;
             })
@@ -53,9 +51,8 @@ export default function SettingsPanel({
                 </SheetHeader>
 
                 <div className="grid gap-6 py-6">
-                    {/* Universal Field: Every node has a label */}
                     <div className="grid gap-2">
-                        <Label htmlFor="label">Node Label</Label>
+                        <Label htmlFor="label">Label</Label>
                         <Input
                             id="label"
                             value={(node.data.label as string) || ''}
@@ -63,10 +60,47 @@ export default function SettingsPanel({
                         />
                     </div>
 
-                    {/* Conditional Fields: Only show for If/Else Nodes */}
+                    {node.type === 'email' && (
+                        <div className="rounded-lg border bg-muted/30 space-y-4 p-4">
+                            <div className="font-medium text-sm">Email Configuration</div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="to">To</Label>
+                                <Input
+                                    id="to"
+                                    placeholder="user@example.com"
+                                    value={(node.data.to as string) || ''}
+                                    onChange={(e) => updateData('to', e.target.value)}
+                                />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="subject">Subject</Label>
+                                <Input
+                                    id="subject"
+                                    placeholder="New commit in {{webhook.repository.name}}"
+                                    value={(node.data.subject as string) || ''}
+                                    onChange={(e) => updateData('subject', e.target.value)}
+                                />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="body">Body</Label>
+                                <Textarea
+                                    id="body"
+                                    rows={5}
+                                    placeholder="Author: {{webhook.head_commit.author.name}}&#10;Message: {{webhook.head_commit.message}}"
+                                    value={(node.data.body as string) || ''}
+                                    onChange={(e) => updateData('body', e.target.value)}
+                                    className="font-mono text-xs"
+                                />
+                            </div>
+                        </div>
+                    )}
+
                     {node.type === 'if' && (
-                        <div className="p-4 rounded-md border bg-muted/30 space-y-4">
-                            <div className="font-medium text-sm">Logic Condition</div>
+                        <div className="rounded-lg border bg-muted/30 space-y-4 p-4">
+                            <div className="font-medium text-sm">Condition</div>
 
                             <div className="grid gap-2">
                                 <Label htmlFor="value1" className="text-xs">Value 1</Label>
@@ -82,10 +116,10 @@ export default function SettingsPanel({
                                 <Label className="text-xs">Operator</Label>
                                 <Select
                                     value={(node.data.operator as string) || '=='}
-                                    onValueChange={(val) => updateData('operator', val)}
+                                    onValueChange={(val) => updateData('operator', val || '==')}
                                 >
                                     <SelectTrigger className="bg-background">
-                                        <SelectValue placeholder="Select an operator" />
+                                        <SelectValue placeholder="Select operator" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="==">Equals (==)</SelectItem>
@@ -107,6 +141,18 @@ export default function SettingsPanel({
                                     onChange={(e) => updateData('value2', e.target.value)}
                                 />
                             </div>
+                        </div>
+                    )}
+
+                    {node.type === 'log' && (
+                        <div className="grid gap-2">
+                            <Label htmlFor="message">Log Message</Label>
+                            <Input
+                                id="message"
+                                placeholder="{{ $json }}"
+                                value={(node.data.message as string) || ''}
+                                onChange={(e) => updateData('message', e.target.value)}
+                            />
                         </div>
                     )}
                 </div>

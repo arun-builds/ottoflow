@@ -22,7 +22,7 @@ func NewWorkflowHandler(repo *db.WorkflowRepository) *WorkflowHandler {
 func getWorkspaceID(r *http.Request) string {
 	wsID := r.Header.Get("X-Workspace-ID")
 	if wsID == "" {
-		return "ws_acme_corp" // Fallback for easy local testing
+		return "00000000-0000-0000-0000-000000000001" // Fallback for easy local testing
 	}
 	return wsID
 }
