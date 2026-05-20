@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 type NodeUI struct {
 	X float64 `json:"x"`
 	Y float64 `json:"y"`
@@ -35,11 +37,13 @@ type Edge struct {
 	Target       string `json:"target"`
 	TargetHandle string `json:"targetHandle"` // e.g., "main"
 }
-
 type Workflow struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Status string `json:"status"` // e.g., "active", "draft", "inactive"
-	Nodes  []Node `json:"nodes"`
-	Edges  []Edge `json:"edges"`
+	ID          string    `json:"id" db:"id"`
+	WorkspaceID string    `json:"workspace_id" db:"workspace_id"`
+	Name        string    `json:"name" db:"name"`
+	Status      string    `json:"status" db:"status"`
+	Nodes       any       `json:"nodes" db:"nodes"`
+	Edges       any       `json:"edges" db:"edges"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 }

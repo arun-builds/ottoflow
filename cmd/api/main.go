@@ -13,13 +13,31 @@ import (
 	"github.com/arun-builds/ottoflow/internal/db"
 )
 
+func CORSMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Authorization")
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgres://postgres:postgres@localhost:5432/ottoflow?sslmode=disable"
+		dbURL = "postgresql://postgres:postgres@localhost:5432/postgres"
 	}
 
 	dbConn, err := db.NewPostgresDB(dbURL)
@@ -39,18 +57,20 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
+
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"service":"api", "status":"healthy"}`))
 	})
 
-	// Only UI Routes
 	mux.HandleFunc("GET /api/workflows", workflowHandler.ListWorkflows)
 	mux.HandleFunc("GET /api/workflows/{id}", workflowHandler.GetWorkflow)
 	mux.HandleFunc("POST /api/workflows", workflowHandler.CreateWorkflow)
 	mux.HandleFunc("PUT /api/workflows/{id}", workflowHandler.UpdateWorkflow)
 
-	srv := &http.Server{Addr: ":" + port, Handler: mux}
+	handler := CORSMiddleware(mux)
+
+	srv := &http.Server{Addr: ":" + port, Handler: handler}
 
 	go func() {
 		slog.Info("Starting API Service", slog.String("port", port))

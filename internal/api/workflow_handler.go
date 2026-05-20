@@ -1,14 +1,13 @@
 package api
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 
 	"github.com/arun-builds/ottoflow/internal/db"
 	"github.com/arun-builds/ottoflow/internal/models"
+	"github.com/google/uuid"
 )
 
 type WorkflowHandler struct {
@@ -65,32 +64,35 @@ func (h *WorkflowHandler) GetWorkflow(w http.ResponseWriter, r *http.Request) {
 
 // POST /api/workflows
 func (h *WorkflowHandler) CreateWorkflow(w http.ResponseWriter, r *http.Request) {
-	wsID := getWorkspaceID(r)
-
-	var wf models.Workflow
-	if err := json.NewDecoder(r.Body).Decode(&wf); err != nil {
+	var req models.Workflow
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
+	defer r.Body.Close()
 
-	// Generate a unique ID for the new workflow
-	b := make([]byte, 8)
-	rand.Read(b)
-	wf.ID = "wf_" + hex.EncodeToString(b)
+	// 1. Generate new native UUIDs
+	req.ID = uuid.NewString()
 
-	if wf.Status == "" {
-		wf.Status = "draft"
+	// If the frontend didn't pass a workspace ID, generate one for testing,
+	// or extract it from your auth middleware in a real app.
+	if req.WorkspaceID == "" {
+		req.WorkspaceID = uuid.NewString()
 	}
 
-	if err := h.repo.Save(r.Context(), wsID, &wf); err != nil {
-		slog.Error("Failed to save workflow", slog.String("error", err.Error()))
+	// 2. Set default status
+	req.Status = "draft"
+
+	// 3. Save to database
+	err := h.repo.Create(r.Context(), &req)
+	if err != nil {
 		http.Error(w, "failed to save workflow", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(wf)
+	json.NewEncoder(w).Encode(req)
 }
 
 // PUT /api/workflows/{id}
