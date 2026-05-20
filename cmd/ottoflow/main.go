@@ -28,7 +28,7 @@ func main() {
 	}
 
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379", // Default local Redis
+		Addr:     "localhost:6379",
 		Password: "",
 		DB:       0,
 	})
@@ -47,6 +47,7 @@ func main() {
 	defer dbConn.Close()
 
 	workflowRepo := db.NewWorkflowRepository(dbConn)
+	workflowHandler := api.NewWorkflowHandler(workflowRepo)
 	execRepo := db.NewExecutionRepository(dbConn)
 
 	webhookHandler := api.NewWebhookHandler(execRepo)
@@ -83,6 +84,11 @@ func main() {
 	})
 
 	mux.HandleFunc("POST /webhook/{id}", webhookHandler.HandleIncomingWebhook)
+
+	mux.HandleFunc("GET /api/workflows", workflowHandler.ListWorkflows)
+	mux.HandleFunc("GET /api/workflows/{id}", workflowHandler.GetWorkflow)
+	mux.HandleFunc("POST /api/workflows", workflowHandler.CreateWorkflow)
+	mux.HandleFunc("PUT /api/workflows/{id}", workflowHandler.UpdateWorkflow)
 
 	srv := &http.Server{Addr: ":" + port, Handler: mux}
 

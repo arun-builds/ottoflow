@@ -81,3 +81,30 @@ func (r *WorkflowRepository) GetByID(ctx context.Context, workspaceID, workflowI
 
 	return &wf, nil
 }
+
+// List returns all workflows for a workspace without loading the heavy nodes/edges JSON.
+func (r *WorkflowRepository) List(ctx context.Context, workspaceID string) ([]models.Workflow, error) {
+	query := `
+		SELECT id, name, status 
+		FROM workflows 
+		WHERE workspace_id = $1 
+		ORDER BY updated_at DESC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, workspaceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list workflows: %w", err)
+	}
+	defer rows.Close()
+
+	var workflows []models.Workflow
+	for rows.Next() {
+		var wf models.Workflow
+		if err := rows.Scan(&wf.ID, &wf.Name, &wf.Status); err != nil {
+			return nil, err
+		}
+		workflows = append(workflows, wf)
+	}
+
+	return workflows, nil
+}
