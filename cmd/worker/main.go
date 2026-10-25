@@ -36,7 +36,7 @@ func main() {
 	// 2. Connect to Redis Consumer
 	redisURL := os.Getenv("REDIS_URL")
 	if redisURL == "" {
-		redisURL = "redis://:password@localhost:6379"
+		redisURL = "redis://localhost:6379"
 	}
 
 	consumer, err := queue.NewWebhookConsumer(redisURL)

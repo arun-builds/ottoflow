@@ -52,9 +52,12 @@ services:
       - "8081:8081"
     environment:
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/ottoflow?sslmode=disable
+      - REDIS_URL=redis://redis:6379
       - PORT=8081
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   worker:
@@ -65,7 +68,7 @@ services:
     container_name: ottoflow-worker
     environment:
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/ottoflow?sslmode=disable
-      - REDIS_ADDR=redis:6379
+      - REDIS_URL=redis://redis:6379
     depends_on:
       postgres:
         condition: service_healthy

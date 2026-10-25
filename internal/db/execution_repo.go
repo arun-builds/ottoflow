@@ -42,12 +42,12 @@ func (r *ExecutionRepository) CompleteWorkflowExecution(ctx context.Context, exe
 }
 
 // LogNodeExecution saves the inputs and outputs of a single node step
-func (r *ExecutionRepository) LogNodeExecution(ctx context.Context, execID, nodeID, status, inputJSON, outputJSON, errMsg string) error {
+func (r *ExecutionRepository) LogNodeExecution(ctx context.Context, execID, nodeID, nodeType, status, inputJSON, outputJSON, errMsg string) error {
 	query := `
-		INSERT INTO node_executions (id, execution_id, node_id, status, input_data, output_data, error_message, executed_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO node_executions (id, execution_id, node_id, node_type, status, input_data, output_data, error_message, executed_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
-	_, err := r.db.ExecContext(ctx, query, uuid.NewString(), execID, nodeID, status, inputJSON, outputJSON, errMsg, time.Now())
+	_, err := r.db.ExecContext(ctx, query, uuid.NewString(), execID, nodeID, nodeType, status, inputJSON, outputJSON, errMsg, time.Now())
 	return err
 }
 
@@ -84,7 +84,7 @@ func (r *ExecutionRepository) GetExecutionsByWorkflow(ctx context.Context, workf
 // GetNodeExecutions fetches the granular step-by-step logs for a specific run
 func (r *ExecutionRepository) GetNodeExecutions(ctx context.Context, executionID string) ([]models.NodeExecution, error) {
 	query := `
-		SELECT id, execution_id, node_id, status, input_data, output_data, error_message, executed_at 
+		SELECT id, execution_id, node_id, COALESCE(node_type, ''), status, input_data, output_data, error_message, executed_at 
 		FROM node_executions 
 		WHERE execution_id = $1 
 		ORDER BY executed_at ASC
@@ -99,7 +99,7 @@ func (r *ExecutionRepository) GetNodeExecutions(ctx context.Context, executionID
 	for rows.Next() {
 		var n models.NodeExecution
 		err := rows.Scan(
-			&n.ID, &n.ExecutionID, &n.NodeID, &n.Status,
+			&n.ID, &n.ExecutionID, &n.NodeID, &n.NodeType, &n.Status,
 			&n.InputData, &n.OutputData, &n.ErrorMessage, &n.ExecutedAt,
 		)
 		if err != nil {

@@ -1,149 +1,234 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Loader2, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import {
+  ArrowLeft,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Webhook,
+  Mail,
+  GitBranch,
+  Globe,
+  FileText,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Separator } from '@/components/ui/separator';
+import { toast } from 'sonner';
+import { getNodeExecutions, type NodeExecution } from '@/lib/api';
 
-interface NodeExecution {
-    id: string;
-    execution_id: string;
-    node_id: string;
-    node_type: string;
-    status: string;
-    input_data: any;
-    output_data: any;
-    error_message: string;
-    started_at: string;
-    completed_at: string;
+// ── helpers ─────────────────────────────────────────────────────────────
+
+const nodeIcons: Record<string, typeof Webhook> = {
+  webhook: Webhook,
+  email: Mail,
+  if: GitBranch,
+  http: Globe,
+  log: FileText,
+};
+
+const nodeColors: Record<string, string> = {
+  webhook: 'text-blue-400 bg-blue-500/10',
+  email: 'text-emerald-400 bg-emerald-500/10',
+  if: 'text-purple-400 bg-purple-500/10',
+  http: 'text-amber-400 bg-amber-500/10',
+  log: 'text-cyan-400 bg-cyan-500/10',
+};
+
+function statusIcon(status: string) {
+  switch (status) {
+    case 'success':
+    case 'completed':
+      return <CheckCircle2 className="w-4 h-4 text-emerald-400" />;
+    case 'failed':
+      return <XCircle className="w-4 h-4 text-red-400" />;
+    case 'running':
+      return <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />;
+    default:
+      return <Clock className="w-4 h-4 text-muted-foreground" />;
+  }
 }
 
-const API_BASE = 'http://localhost:8080';
+function statusBadge(status: string) {
+  const map: Record<string, { variant: 'default' | 'secondary' | 'destructive'; className: string }> = {
+    success: { variant: 'default', className: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' },
+    completed: { variant: 'default', className: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' },
+    failed: { variant: 'destructive', className: 'border-red-500/30 text-red-400 bg-red-500/10' },
+  };
+  const s = map[status] ?? { variant: 'secondary' as const, className: '' };
+  return (
+    <Badge variant={s.variant} className={`text-[10px] uppercase tracking-wider font-semibold ${s.className}`}>
+      {status}
+    </Badge>
+  );
+}
 
-const statusIcon = (status: string) => {
-    switch (status) {
-        case 'completed':
-            return <CheckCircle2 className="w-4 h-4 text-green-500" />;
-        case 'failed':
-            return <XCircle className="w-4 h-4 text-red-500" />;
-        case 'running':
-            return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
-        default:
-            return <Clock className="w-4 h-4 text-muted-foreground" />;
-    }
-};
+// ── Collapsible JSON viewer ─────────────────────────────────────────────
 
-const statusVariant = (status: string): 'default' | 'secondary' | 'destructive' => {
-    switch (status) {
-        case 'completed':
-            return 'default';
-        case 'failed':
-            return 'destructive';
-        case 'running':
-            return 'secondary';
-        default:
-            return 'secondary';
-    }
-};
+function JsonBlock({ label, data }: { label: string; data: unknown }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!data) return null;
+
+  const json = JSON.stringify(data, null, 2);
+  const isLong = json.length > 200;
+
+  return (
+    <div>
+      <button
+        className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 hover:text-foreground transition-colors"
+        onClick={() => setExpanded(!expanded)}
+      >
+        {isLong && (expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
+        {label}
+      </button>
+      <pre
+        className={`rounded-lg bg-muted/50 border border-border/40 p-3 text-[11px] font-mono overflow-auto transition-all ${
+          !expanded && isLong ? 'max-h-24' : 'max-h-96'
+        }`}
+      >
+        {json}
+      </pre>
+    </div>
+  );
+}
+
+// ── Main page ───────────────────────────────────────────────────────────
 
 export default function ExecutionDetail() {
-    const { executionId } = useParams();
-    const [nodes, setNodes] = useState<NodeExecution[]>([]);
-    const [loading, setLoading] = useState(true);
+  const { executionId } = useParams();
+  const navigate = useNavigate();
+  const [nodes, setNodes] = useState<NodeExecution[]>([]);
+  const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        if (!executionId) return;
+  useEffect(() => {
+    if (!executionId) return;
 
-        fetch(`${API_BASE}/api/executions/${executionId}/nodes`)
-            .then((res) => res.json())
-            .then((data) => {
-                if (Array.isArray(data)) setNodes(data);
-            })
-            .catch((err) => console.error('Failed to fetch node executions:', err))
-            .finally(() => setLoading(false));
-    }, [executionId]);
+    getNodeExecutions(executionId)
+      .then(setNodes)
+      .catch(() => toast.error('Failed to load execution details'))
+      .finally(() => setLoading(false));
+  }, [executionId]);
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-screen">
-                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-            </div>
-        );
-    }
-
+  if (loading) {
     return (
-        <div className="p-8 max-w-4xl mx-auto">
-            <div className="flex items-center gap-4 mb-8">
-                <Link to="/workflows">
-                    <Button variant="ghost" size="sm">
-                        <ArrowLeft className="w-4 h-4 mr-1" />
-                        Back
-                    </Button>
-                </Link>
-                <div>
-                    <h1 className="text-3xl font-bold">Execution Details</h1>
-                    <p className="text-muted-foreground mt-1 font-mono text-sm">{executionId}</p>
-                </div>
-            </div>
-
-            {nodes.length === 0 ? (
-                <Card>
-                    <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                        <Clock className="w-12 h-12 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-semibold mb-1">No node logs</h3>
-                        <p className="text-muted-foreground">Node execution data will appear here after the workflow runs</p>
-                    </CardContent>
-                </Card>
-            ) : (
-                <div className="space-y-4">
-                    {nodes.map((node, index) => (
-                        <Card key={node.id}>
-                            <CardHeader className="pb-3">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-sm font-mono text-muted-foreground w-6">#{index + 1}</span>
-                                        {statusIcon(node.status)}
-                                        <CardTitle className="text-base">
-                                            {node.node_id}
-                                            <span className="text-muted-foreground text-sm ml-2">({node.node_type})</span>
-                                        </CardTitle>
-                                    </div>
-                                    <Badge variant={statusVariant(node.status)}>{node.status}</Badge>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="grid gap-4">
-                                    {node.input_data && (
-                                        <div>
-                                            <div className="text-xs font-medium text-muted-foreground mb-1">Input</div>
-                                            <pre className="bg-muted p-3 rounded text-xs overflow-auto max-h-32">
-                                                {JSON.stringify(node.input_data, null, 2)}
-                                            </pre>
-                                        </div>
-                                    )}
-                                    {node.output_data && (
-                                        <div>
-                                            <div className="text-xs font-medium text-muted-foreground mb-1">Output</div>
-                                            <pre className="bg-muted p-3 rounded text-xs overflow-auto max-h-32">
-                                                {JSON.stringify(node.output_data, null, 2)}
-                                            </pre>
-                                        </div>
-                                    )}
-                                    {node.error_message && (
-                                        <div className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 p-3 rounded">
-                                            {node.error_message}
-                                        </div>
-                                    )}
-                                    <div className="text-xs text-muted-foreground">
-                                        {node.started_at && new Date(node.started_at).toLocaleString()}
-                                        {node.completed_at && ` → ${new Date(node.completed_at).toLocaleString()}`}
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
-                </div>
-            )}
+      <div className="mx-auto max-w-4xl px-6 py-12">
+        <Skeleton className="mb-10 h-10 w-64" />
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-40 rounded-xl" />
+          ))}
         </div>
+      </div>
     );
+  }
+
+  return (
+    <div className="mx-auto max-w-4xl px-6 py-12">
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <div className="mb-10 flex items-center gap-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1 text-muted-foreground hover:text-foreground"
+          onClick={() => navigate(-1)}
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Back
+        </Button>
+        <div className="h-5 w-px bg-border/40" />
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Execution Detail</h1>
+          <p className="text-xs text-muted-foreground font-mono mt-0.5">
+            {executionId}
+          </p>
+        </div>
+      </div>
+
+      {/* ── Empty state ────────────────────────────────────────────────── */}
+      {nodes.length === 0 ? (
+        <Card className="glass">
+          <CardContent className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
+              <Clock className="h-7 w-7 text-primary" />
+            </div>
+            <h3 className="mb-2 text-lg font-semibold">No node logs</h3>
+            <p className="max-w-sm text-muted-foreground">
+              Node execution data will appear here after the workflow runs.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {nodes.map((node, index) => {
+            const Icon = nodeIcons[node.node_type] || FileText;
+            const colorClass = nodeColors[node.node_type] || 'text-muted-foreground bg-muted';
+
+            return (
+              <Card
+                key={node.id}
+                className="glass rounded-xl animate-slide-up"
+                style={{ animationDelay: `${index * 0.06}s` }}
+              >
+                <CardContent className="p-5">
+                  {/* ── Node header ───────────────────────────────────── */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground font-mono font-medium">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-muted text-[10px] font-bold">
+                          {index + 1}
+                        </span>
+                      </div>
+                      {statusIcon(node.status)}
+                      <div className={`flex h-7 w-7 items-center justify-center rounded-md ${colorClass.split(' ')[1]}`}>
+                        <Icon className={`h-3.5 w-3.5 ${colorClass.split(' ')[0]}`} />
+                      </div>
+                      <div>
+                        <span className="text-sm font-semibold">
+                          Node {node.node_id}
+                        </span>
+                        <span className="ml-2 text-xs text-muted-foreground capitalize">
+                          {node.node_type}
+                        </span>
+                      </div>
+                    </div>
+                    {statusBadge(node.status)}
+                  </div>
+
+                  {/* ── Data blocks ──────────────────────────────────── */}
+                  <div className="space-y-3">
+                    <JsonBlock label="Input" data={node.input_data} />
+                    <JsonBlock label="Output" data={node.output_data} />
+
+                    {node.error_message && (
+                      <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-xs text-red-400">
+                        {node.error_message}
+                      </div>
+                    )}
+                  </div>
+
+                  <Separator className="my-3" />
+
+                  <div className="text-[10px] text-muted-foreground">
+                    {node.executed_at &&
+                      new Date(node.executed_at).toLocaleString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                      })}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }

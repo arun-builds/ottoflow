@@ -25,11 +25,35 @@ type Edge struct {
 	SourceHandle string `json:"sourceHandle"` // React Flow uses camelCase for this!
 }
 
+// UnmarshalJSON accepts both camelCase ("sourceHandle", React Flow native)
+// and snake_case ("source_handle", legacy saves) so old and new graphs route correctly.
+func (e *Edge) UnmarshalJSON(data []byte) error {
+	aux := struct {
+		ID                string `json:"id"`
+		Source            string `json:"source"`
+		Target            string `json:"target"`
+		SourceHandle      string `json:"sourceHandle"`
+		SourceHandleSnake string `json:"source_handle"`
+	}{}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	e.ID = aux.ID
+	e.Source = aux.Source
+	e.Target = aux.Target
+	e.SourceHandle = aux.SourceHandle
+	if e.SourceHandle == "" {
+		e.SourceHandle = aux.SourceHandleSnake
+	}
+	return nil
+}
+
 // ExecutorStorage defines the methods the engine needs to persist history
 type ExecutorStorage interface {
 	CreateWorkflowExecution(ctx context.Context, workspaceID, workflowID string) (string, error)
 	CompleteWorkflowExecution(ctx context.Context, execID, status string) error
-	LogNodeExecution(ctx context.Context, execID, nodeID, status, inputJSON, outputJSON, errMsg string) error
+	LogNodeExecution(ctx context.Context, execID, nodeID, nodeType, status, inputJSON, outputJSON, errMsg string) error
 }
 
 // Regex to match {{anything.inside}}
@@ -69,14 +93,25 @@ func resolveString(input string, state State) string {
 	})
 }
 
+// stringData safely reads a field from node data as a string.
+// Missing or null values resolve to "" instead of the "<nil>" fmt output.
+func stringData(data map[string]interface{}, key string) string {
+	val, exists := data[key]
+	if !exists || val == nil {
+		return ""
+	}
+	return fmt.Sprintf("%v", val)
+}
+
 func Execute(ctx context.Context, storage ExecutorStorage, workspaceID, workflowID, triggerType string, rawNodes, rawEdges any, rawPayload string) error {
 	execID, err := storage.CreateWorkflowExecution(ctx, workspaceID, workflowID)
 	if err != nil {
 		return fmt.Errorf("failed to create execution record: %w", err)
 	}
+	runStatus := "completed"
 	defer func() {
-		// We will pass "completed" by default, or "failed" if addingerror handling later
-		storage.CompleteWorkflowExecution(context.Background(), execID, "completed")
+		// runStatus is upgraded to "failed" whenever a node errors out
+		storage.CompleteWorkflowExecution(context.Background(), execID, runStatus)
 	}()
 
 	// Parse the React Flow data from interface{} to concrete structs
@@ -100,6 +135,7 @@ func Execute(ctx context.Context, storage ExecutorStorage, workspaceID, workflow
 	}
 
 	if startNode == nil {
+		runStatus = "failed"
 		return fmt.Errorf("no %s trigger node found in workflow", triggerType)
 	}
 
@@ -118,11 +154,19 @@ func Execute(ctx context.Context, storage ExecutorStorage, workspaceID, workflow
 	// 4. BFS Queue Setup
 	queue := []Node{*startNode}
 
+	// Tracks nodes that already ran so converging branches don't execute a node twice
+	visited := make(map[string]bool)
+
 	// 5. The Execution Loop
 	for len(queue) > 0 {
 		// Pop the first node
 		curr := queue[0]
 		queue = queue[1:]
+
+		if visited[curr.ID] {
+			continue
+		}
+		visited[curr.ID] = true
 
 		slog.Info("Executing Node", slog.String("node_id", curr.ID), slog.String("type", curr.Type))
 
@@ -140,7 +184,8 @@ func Execute(ctx context.Context, storage ExecutorStorage, workspaceID, workflow
 		if !exists {
 			nodeStatus = "failed"
 			nodeError = fmt.Sprintf("Unsupported node type: %s", curr.Type)
-			storage.LogNodeExecution(ctx, execID, curr.ID, nodeStatus, string(inputBytes), "{}", nodeError)
+			runStatus = "failed"
+			storage.LogNodeExecution(ctx, execID, curr.ID, curr.Type, nodeStatus, string(inputBytes), "{}", nodeError)
 			break // Stop execution, unknown node
 		}
 
@@ -158,13 +203,14 @@ func Execute(ctx context.Context, storage ExecutorStorage, workspaceID, workflow
 		if result.Error != nil {
 			nodeStatus = "failed"
 			nodeError = result.Error.Error()
+			runStatus = "failed"
 		}
 		if result.Output != nil {
 			nodeOutput = result.Output
 		}
 
 		outputBytes, _ := json.Marshal(nodeOutput)
-		storage.LogNodeExecution(ctx, execID, curr.ID, nodeStatus, string(inputBytes), string(outputBytes), nodeError)
+		storage.LogNodeExecution(ctx, execID, curr.ID, curr.Type, nodeStatus, string(inputBytes), string(outputBytes), nodeError)
 
 		// --- ENQUEUE NEXT NODES ---
 		// Only follow edges that match the activated handle

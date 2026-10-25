@@ -12,16 +12,13 @@ import (
 type HttpNodeHandler struct{}
 
 func (h *HttpNodeHandler) Handle(nc NodeContext) NodeResult {
-	rawURL := fmt.Sprintf("%v", nc.Node.Data["url"])
-	rawMethod := fmt.Sprintf("%v", nc.Node.Data["method"])
-	if rawMethod == "" || rawMethod == "<nil>" {
+	rawURL := stringData(nc.Node.Data, "url")
+	rawMethod := stringData(nc.Node.Data, "method")
+	if rawMethod == "" {
 		rawMethod = "GET"
 	}
 
-	rawBody := ""
-	if nc.Node.Data["body"] != nil {
-		rawBody = fmt.Sprintf("%v", nc.Node.Data["body"])
-	}
+	rawBody := stringData(nc.Node.Data, "body")
 
 	reqURL := resolveString(rawURL, nc.State)
 	reqMethod := resolveString(rawMethod, nc.State)

@@ -1,0 +1,8 @@
+.git
+.gitignore
+client
+*.md
+migrations
+docker-compose.yml
+.dockerignore
+Dockerfile

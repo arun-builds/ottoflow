@@ -1,18 +1,25 @@
 import { Handle, Position } from '@xyflow/react';
 import { Webhook } from 'lucide-react';
 
-export default function WebhookNode({ data }: { data: any }) {
+export default function WebhookNode({ data }: { data: Record<string, unknown> }) {
   return (
-    <div className="w-44 rounded-lg border-2 border-blue-500/30 bg-white dark:bg-gray-900 shadow-md overflow-hidden">
-      <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-950/50 border-b border-blue-200 dark:border-blue-800">
-        <Webhook size={14} className="text-blue-600 dark:text-blue-400 shrink-0" />
-        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{data.label || 'Webhook'}</span>
+    <div className="w-44 rounded-lg border border-blue-500/30 bg-card shadow-sm overflow-hidden transition-all hover:shadow-md hover:border-blue-500/60">
+      <div className="flex items-center gap-2 px-3 py-2 bg-blue-500/10 border-b border-blue-500/20">
+        <div className="flex h-5 w-5 items-center justify-center rounded bg-blue-500/20">
+          <Webhook size={11} className="text-blue-400" />
+        </div>
+        <span className="text-[11px] font-semibold text-foreground truncate">
+          {(data.label as string) || 'Webhook'}
+        </span>
+      </div>
+      <div className="px-3 py-1.5 text-[9px] text-muted-foreground font-mono">
+        HTTP POST trigger
       </div>
       <Handle
         type="source"
         position={Position.Right}
         id="main"
-        className="!w-4 !h-4 !bg-blue-500 !border-2 !border-white dark:!border-gray-900 hover:!scale-150 transition-transform"
+        className="!w-2.5 !h-2.5 !bg-blue-500 !border-2 !border-card hover:!scale-125 transition-transform"
       />
     </div>
   );

@@ -18,6 +18,7 @@ type NodeExecution struct {
 	ID           string          `json:"id"`
 	ExecutionID  string          `json:"execution_id"`
 	NodeID       string          `json:"node_id"`
+	NodeType     string          `json:"node_type"`
 	Status       string          `json:"status"`
 	InputData    json.RawMessage `json:"input_data"`
 	OutputData   json.RawMessage `json:"output_data"`
